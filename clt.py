@@ -51,10 +51,23 @@ class BinaryCLT:
         self.tree = predecessors.tolist()
         self.tree[self.root] = -1
 
+        self.log_params = np.zeros((self.D,2,2))
+
+        for i in range(self.D):
+            parent = self.tree[i]
+
+            if parent<0:
+                # For the root only marginal probability
+                self.log_params[i,0,:] = np.log(self.margins[:, i])
+                self.log_params[i,1,:] = np.log(self.margins[:, i])
+
+            else:
+                for j in [0,1]:
+                    for k in [0,1]:
+                        # Conditional Probabilities
+                        self.log_params[i,j,k] = np.log(self.joint_prob(parent, i)[j, k]) - np.log(self.margins[j, parent])
+
         
-
-
-    
     def margin_prob(self):
         # calculate P(X=x) marginal Probabilities for all the RVs of the dataset 
         count_ones = np.sum(self.data, axis=0) + 2*self.alpha
@@ -89,10 +102,10 @@ class BinaryCLT:
         return mi
 
     def get_tree(self):
-        self.tree
+        return self.tree
 
     def get_log_params(self):
-        pass
+        return self.log_params
 
     def log_prob(self, x, exhaustive: bool = False):
         pass
@@ -106,5 +119,5 @@ train_data = load_dataset(dir, train_file)
 clt = BinaryCLT(data=train_data, root=10)
 
 print(clt.tree)
-#print(clt.get_log_params())
+print(clt.get_log_params())
 #print(clt.sample(n_samples=3))
