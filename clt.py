@@ -111,7 +111,24 @@ class BinaryCLT:
         pass
 
     def sample(self, n_samples: int):
-        pass
+        samples = np.zeros((n_samples,self.D), dtype=int)
+
+        for t in range(n_samples):
+            # sample root
+            probs = np.exp(self.log_params[self.root,0,:])
+            x = np.zeros(self.D, dtype=int)
+            x[self.root] = np.random.choice([0,1], p=probs)
+
+            #order = breadth_first_order(None, self.root, directed=False)[0]
+            for i in self.order:
+                if i==self.root: continue
+                parent = self.tree[i]
+                p = np.exp(self.log_params[i, x[parent], :])
+
+                x[i] = np.random.choice([0,1], p=p)
+            samples[t] = x
+        
+        return samples
      
 
 train_data = load_dataset(dir, train_file)
@@ -120,4 +137,4 @@ clt = BinaryCLT(data=train_data, root=10)
 
 print(clt.tree)
 print(clt.get_log_params())
-#print(clt.sample(n_samples=3))
+print(clt.sample(n_samples=3))
