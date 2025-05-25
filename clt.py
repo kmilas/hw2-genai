@@ -43,13 +43,16 @@ class BinaryCLT:
         mst = minimum_spanning_tree(-self.mi)
         #edges = np.array(mst.nonzero()).T.tolist() + np.array(mst.T.nonzero()).T.tolist()
         
-        undirected = mst + mst.T
-        _, predecessors = breadth_first_order(undirected, self.root,
+        self.undirected = mst + mst.T
+        self.order, predecessors = breadth_first_order(self.undirected, self.root,
                                        directed=False,
                                        return_predecessors=True)
 
         self.tree = predecessors.tolist()
         self.tree[self.root] = -1
+
+        
+
 
     
     def margin_prob(self):
@@ -68,21 +71,21 @@ class BinaryCLT:
         for x_val in [0,1]:
             for y_val in [0,1]:
                 count = np.sum((self.data[:, X] == x_val) & (self.data[:, Y] == y_val))
-                joint[ y_val, x_val] = (count + self.alpha) / (self.N + 4*self.alpha)
+                joint[x_val, y_val] = (count + self.alpha) / (self.N + 4*self.alpha)
 
         return joint
     
     def mutual_information(self, X, Y):
         joint = self.joint_prob(X, Y)
-        p_x = self.margins[:, X]
-        p_y = self.margins[:, Y]
+        px = self.margins[:, X]
+        py = self.margins[:, Y]
         mi = 0.0
 
         for x in [0, 1]:
             for y in [0, 1]:
                 p_xy = joint[y, x]
                 if p_xy > 0:
-                    mi += p_xy * np.log(p_xy / (p_x[x] * p_y[y]))
+                    mi += p_xy * (np.log(p_xy) - np.log(px[x]) - np.log(py[y]))
         return mi
 
     def get_tree(self):
@@ -103,4 +106,5 @@ train_data = load_dataset(dir, train_file)
 clt = BinaryCLT(data=train_data, root=10)
 
 print(clt.tree)
-
+#print(clt.get_log_params())
+#print(clt.sample(n_samples=3))
