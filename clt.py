@@ -48,7 +48,7 @@ class BinaryCLT:
                                        directed=False,
                                        return_predecessors=True)
 
-        self.tree = predecessors.tolist()
+        self.tree = predecessors.tolist() 
         self.tree[self.root] = -1
 
         self.log_params = np.zeros((self.D,2,2))
@@ -66,7 +66,6 @@ class BinaryCLT:
                     for k in [0,1]:
                         # Conditional Probabilities
                         self.log_params[i,j,k] = np.log(self.joint_prob(parent, i)[j, k]) - np.log(self.margins[j, parent])
-
         
     def margin_prob(self):
         # calculate P(X=x) marginal Probabilities for all the RVs of the dataset 
@@ -88,6 +87,7 @@ class BinaryCLT:
 
         return joint
     
+    
     def mutual_information(self, X, Y):
         joint = self.joint_prob(X, Y)
         px = self.margins[:, X]
@@ -108,7 +108,51 @@ class BinaryCLT:
         return self.log_params
 
     def log_prob(self, x, exhaustive: bool = False):
-        pass
+        n = x.shape[0]
+        lg = np.zeros((n, 1))
+
+        if exhaustive:
+            # Whole joint distribution 
+            n_options = 2 ** self.D
+            joint_distrib = np.zeros((n_options, self.D+1))
+            for i in range(n_options):
+                x_i = np.binary_repr(i, width=self.D)
+                value = 0.
+                for j, x_i_j in enumerate(x_i):
+                    parent = self.tree[j]
+                    if parent < 0:  # root
+                        value += self.log_params[j, 0, int(x_i_j)]
+                    else:
+                        value += self.log_params[j, int(x_i[parent]), int(x_i_j)]
+                joint_distrib[i] = np.array(list(map(int, x_i)) + [value])
+
+            # Sanity check:
+            # print(logsumexp(joint_distrib[:, -1]))
+
+            for i in range(n):
+                to_sum = []
+                factors = []
+
+                # Convert nan values to all possible values (0 and 1)
+                n_fill_combinations = 2 ** np.sum(np.isnan(x[i]))
+                for j in range(n_fill_combinations):
+                    x_i = np.copy(x[i])
+                    idx = 0
+                    for k in range(len(x_i)):
+                        if np.isnan(x_i[k]):
+                            x_i[k] = (j >> idx) & 1
+                            idx += 1
+                    to_sum.append(x_i)
+
+                for j in range(n_options):
+                    for k in to_sum:
+                        if np.array_equal(joint_distrib[j, :-1], k):
+                            factors.append(joint_distrib[j, -1])
+                lg[i] = logsumexp(factors)
+        else:
+            pass
+
+        return lg
 
     def sample(self, n_samples: int):
         samples = np.zeros((n_samples,self.D), dtype=int)
@@ -135,6 +179,12 @@ train_data = load_dataset(dir, train_file)
 
 clt = BinaryCLT(data=train_data, root=10)
 
-print(clt.tree)
+# print(clt.tree)
 print(clt.get_log_params())
-print(clt.sample(n_samples=3))
+# print(clt.sample(n_samples=3))
+x = np.array([
+    # [np.nan,np.nan,np.nan,np.nan,np.nan,np.nan,np.nan,np.nan,np.nan,np.nan,np.nan,np.nan,np.nan,np.nan,np.nan,np.nan],
+    # [np.nan, 0,0,1,0,1,1,1,1,1,0,1,1,0,0,1],
+    [0,0,np.nan,1,0,np.nan,1,1,np.nan,1,0,1,1,0,0,1]
+])
+print(clt.log_prob(x, exhaustive=False))
