@@ -21,52 +21,51 @@ def load_dataset(dir, filename):
 
 
 class BinaryCLT:
-    def __init__(self, data, root: int = None, alpha: float = 0.01):
+    def __init__(self, data, root: int = 0, alpha: float = 0.01):
 
         self.data = data
         self.alpha = alpha
         # N: samples  D: random variables 
-        self.N, self.D = data.shape
-        if root is None:
-            root = np.random.randint(self.D)
+        self.D = 5
         self.root = root
 
-        # Mutual information
-        self.mi = np.zeros((self.D, self.D))
-        self.margins = self.margin_prob()
+        # # Mutual information
+        # self.mi = np.zeros((self.D, self.D))
+        # self.margins = self.margin_prob()
         
-        for X, Y in itertools.combinations(range(self.D), 2):
-            mi_val = self.mutual_information(X, Y)
-            self.mi[X, Y] = mi_val
-            self.mi[Y, X] = mi_val
+        # for X, Y in itertools.combinations(range(self.D), 2):
+        #     mi_val = self.mutual_information(X, Y)
+        #     self.mi[X, Y] = mi_val
+        #     self.mi[Y, X] = mi_val
 
-        mst = minimum_spanning_tree(-self.mi)
+        # mst = minimum_spanning_tree(-self.mi)
         #edges = np.array(mst.nonzero()).T.tolist() + np.array(mst.T.nonzero()).T.tolist()
         
-        self.undirected = mst + mst.T
-        self.order, predecessors = breadth_first_order(self.undirected, self.root,
-                                       directed=False,
-                                       return_predecessors=True)
+        # self.undirected = mst + mst.T
+        # self.order, predecessors = breadth_first_order(self.undirected, self.root,
+        #                                directed=False,
+        #                                return_predecessors=True)
 
-        self.tree = predecessors.tolist() 
+        self.order = [0, 4, 1, 3, 2]
+        self.tree = [-1, 0, 4, 4, 0]
         self.tree[self.root] = -1
 
         self.log_params = np.zeros((self.D,2,2))
+        self.log_params[0, 0, :] = np.log([0.3, 0.7])
+        self.log_params[0, 1, :] = np.log([0.3, 0.7])
 
-        for i in range(self.D):
-            parent = self.tree[i]
+        self.log_params[4, 0, :] = np.log([0.9, 0.1])
+        self.log_params[4, 1, :] = np.log([0.4, 0.6])
 
-            if parent<0:
-                # For the root only marginal probability
-                self.log_params[i,0,:] = np.log(self.margins[:, i])
-                self.log_params[i,1,:] = np.log(self.margins[:, i])
+        self.log_params[1, 0, :] = np.log([0.2, 0.8])
+        self.log_params[1, 1, :] = np.log([0.6, 0.4])
 
-            else:
-                for j in [0,1]:
-                    for k in [0,1]:
-                        # Conditional Probabilities
-                        self.log_params[i,j,k] = np.log(self.joint_prob(parent, i)[j, k]) - np.log(self.margins[j, parent])
-        
+        self.log_params[3, 0, :] = np.log([0.8, 0.2])
+        self.log_params[3, 1, :] = np.log([0.5, 0.5])
+
+        self.log_params[2, 0, :] = np.log([0.4, 0.6])
+        self.log_params[2, 1, :] = np.log([0.1, 0.9])
+
     def margin_prob(self):
         # calculate P(X=x) marginal Probabilities for all the RVs of the dataset 
         count_ones = np.sum(self.data, axis=0) + 2*self.alpha
@@ -187,7 +186,6 @@ class BinaryCLT:
 
                 # Sum over all messages for the root (removing the nan values)
                 lg[i] = logsumexp(messages[self.root, ~np.isnan(messages[self.root, :])])
-
         return lg
 
     def sample(self, n_samples: int):
@@ -214,13 +212,15 @@ class BinaryCLT:
 train_data = load_dataset(dir, train_file)
 
 clt = BinaryCLT(data=train_data, root=0)
-print(clt.tree)
-print(clt.get_log_params())
-print(clt.sample(n_samples=3))
-
+# print(clt.log_params)
+# print(clt.tree)
+# print(clt.get_log_params())
+# print(clt.sample(n_samples=3))
 x = np.array([
-    [0,0,0,1,0,1,1,1,1,1,0,1,1,0,0,1],
-    [0,0,np.nan,1,0,np.nan,1,1,np.nan,1,0,1,1,0,0,1]
+    [0,0,0,1,0],
+    [np.nan,0,1,1,0],
+    [np.nan,0,1,1,np.nan],
+    [0,0,np.nan,1,0]
 ])
-print(clt.log_prob(x, exhaustive=False))
-print(clt.log_prob(x, exhaustive=True))
+print(np.exp(clt.log_prob(x, exhaustive=False)))
+print(np.exp(clt.log_prob(x, exhaustive=True)))
