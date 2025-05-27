@@ -25,7 +25,7 @@ class BinaryCLT:
 
         self.data = data
         self.alpha = alpha
-        # N: samples x D: random variables 
+        # N: samples  D: random variables 
         self.N, self.D = data.shape
         if root is None:
             root = np.random.randint(self.D)
@@ -96,7 +96,7 @@ class BinaryCLT:
 
         for x in [0, 1]:
             for y in [0, 1]:
-                p_xy = joint[y, x]
+                p_xy = joint[x, y]
                 if p_xy > 0:
                     mi += p_xy * (np.log(p_xy) - np.log(px[x]) - np.log(py[y]))
         return mi
@@ -177,7 +177,7 @@ class BinaryCLT:
 
 train_data = load_dataset(dir, train_file)
 
-clt = BinaryCLT(data=train_data, root=10)
+clt = BinaryCLT(data=train_data, root=0)
 
 print(clt.tree)
 print(clt.get_log_params())
