@@ -179,12 +179,11 @@ train_data = load_dataset(dir, train_file)
 
 clt = BinaryCLT(data=train_data, root=10)
 
-# print(clt.tree)
+print(clt.tree)
 print(clt.get_log_params())
-# print(clt.sample(n_samples=3))
+print(clt.sample(n_samples=3))
 x = np.array([
-    # [np.nan,np.nan,np.nan,np.nan,np.nan,np.nan,np.nan,np.nan,np.nan,np.nan,np.nan,np.nan,np.nan,np.nan,np.nan,np.nan],
-    # [np.nan, 0,0,1,0,1,1,1,1,1,0,1,1,0,0,1],
+    [np.nan, 0,0,1,0,1,1,1,1,1,0,1,1,0,0,1],
     [0,0,np.nan,1,0,np.nan,1,1,np.nan,1,0,1,1,0,0,1]
 ])
-print(clt.log_prob(x, exhaustive=False))
+print(clt.log_prob(x, exhaustive=True))
