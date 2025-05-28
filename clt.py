@@ -107,7 +107,7 @@ class BinaryCLT:
     def get_log_params(self):
         return self.log_params
 
-    def log_prob(self, x, exhaustive: bool = False):
+    def log_prob_old(self, x, exhaustive: bool = False):
         n = x.shape[0]
         lg = np.zeros((n, 1))
 
@@ -189,8 +189,69 @@ class BinaryCLT:
                 lg[i] = logsumexp(messages[self.root, ~np.isnan(messages[self.root, :])])
 
         return lg
+    
+    def log_prob(self, x, exhaustive: bool = False):
+        n = x.shape[0]
+        lg = np.zeros((n, 1))
 
-    def sample(self, n_samples: int):
+        if exhaustive:
+            for i in range(n):
+                xi_orig = x[i]
+                missing = np.where(np.isnan(xi_orig))[0]
+                m = len(missing)
+                factors = []
+
+                for mask in range(1 << m):
+                    xi = xi_orig.copy()
+                    for bit_idx, var in enumerate(missing):
+                        xi[var] = (mask >> bit_idx) & 1
+
+                    logp = 0.0
+                    for d in range(self.D):
+                        parent = self.tree[d]
+                        b = int(xi[d])
+                        if parent < 0:
+                            logp += self.log_params[d, 0, b]
+                        else:
+                            p = int(xi[parent])
+                            logp += self.log_params[d, p, b]
+
+                    factors.append(logp)
+
+                lg[i] = logsumexp(factors)
+
+        else:
+            for i in range(n):
+                messages = np.full((self.D, 2), np.nan)
+                for j in reversed(self.order):
+                    parent = self.tree[j]
+                    if parent >= 0:
+                        parent_values = [0, 1] if np.isnan(x[i, parent]) else [int(x[i, parent])]
+                        child_values = [0, 1] if np.isnan(x[i, j]) else [int(x[i, j])]
+                        for k in parent_values:
+                            values = []
+                            for l in child_values:
+                                if np.isnan(messages[j, l]):
+                                    values.append(self.log_params[j, k, l])
+                                else:
+                                    values.append(messages[j, l] + self.log_params[j, k, l])
+                            if np.isnan(messages[parent, k]):
+                                messages[parent, k] = logsumexp(values)
+                            else:
+                                messages[parent, k] += logsumexp(values)
+                    else:
+                        possible_values = [0, 1] if np.isnan(x[i, j]) else [int(x[i, j])]
+                        for k in possible_values:
+                            if np.isnan(messages[j, k]):
+                                messages[j, k] = self.log_params[j, 0, k]
+                            else:
+                                messages[j, k] += self.log_params[j, 0, k]
+
+                lg[i] = logsumexp(messages[self.root, ~np.isnan(messages[self.root])])
+
+        return lg
+
+    def sample_old(self, n_samples: int):
         samples = np.zeros((n_samples,self.D), dtype=int)
 
         for t in range(n_samples):
@@ -209,6 +270,30 @@ class BinaryCLT:
             samples[t] = x
         
         return samples
+    
+    def sample(self, n_samples: int) -> np.ndarray:
+        D = self.D
+        out = np.zeros((n_samples, D), dtype=int)
+
+        children = [[] for _ in range(D)]
+        for v, p in enumerate(self.tree):
+            if p != -1:
+                children[p].append(v)
+
+        for s in range(n_samples):
+            root_probs = np.exp(self.log_params[self.root, 0, :])
+            out[s, self.root] = np.random.choice([0, 1], p=root_probs)
+
+            frontier = [self.root]
+            while frontier:
+                u = frontier.pop()
+                xu = out[s, u]
+                for v in children[u]:
+                    probs = np.exp(self.log_params[v, xu, :])
+                    out[s, v] = np.random.choice([0, 1], p=probs)
+                    frontier.append(v)
+
+        return out
      
 
 train_data = load_dataset(dir, train_file)
