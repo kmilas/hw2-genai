@@ -128,6 +128,9 @@ class BinaryCLT:
             # Sanity check:
             # print(logsumexp(joint_distrib[:, -1]))
 
+            data_slice = joint_distrib[:, :-1]
+            values_to_extract = joint_distrib[:, -1]
+            
             for i in range(n):
                 to_sum = []
                 factors = []
@@ -143,10 +146,12 @@ class BinaryCLT:
                             idx += 1
                     to_sum.append(x_i)
 
-                for j in range(2 ** self.D):
-                    for k in to_sum:
-                        if np.array_equal(joint_distrib[j, :-1], k):
-                            factors.append(joint_distrib[j, -1])
+                keys_array = np.asarray(to_sum)
+                element_wise_comparison = (data_slice[:, np.newaxis, :] == keys_array[np.newaxis, :, :])
+                row_level_matches = np.all(element_wise_comparison, axis=2)
+                matching_data_indices = np.where(row_level_matches)[0]
+                factors = values_to_extract[matching_data_indices]
+
                 lg[i] = logsumexp(factors)
         else:
             for i in range(n):
@@ -243,7 +248,7 @@ print(clt.get_log_params())
 print(clt.sample(n_samples=3))
 
 x = np.array([
-    [0,0,0,1,0,1,1,1,1,1,0,1,1,0,0,1],
+    [0,np.nan,0,1,0,1,1,1,1,1,0,1,1,0,0,1],
     [0,0,np.nan,1,0,np.nan,1,1,np.nan,1,0,1,1,0,0,1]
 ])
 print(clt.log_prob(x, exhaustive=False))
