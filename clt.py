@@ -4,10 +4,7 @@ import numpy as np
 import itertools
 import csv
 import os
-
-dir = 'nltcs'
-train_file = 'nltcs.train.data'
-
+import time
 
 def load_dataset(dir, filename):
 
@@ -19,6 +16,10 @@ def load_dataset(dir, filename):
     
     return dataset
 
+DIR = "nltcs"
+train = load_dataset(DIR, "nltcs.train.data")
+test  = load_dataset(DIR, "nltcs.test.data")
+marginal_queries = load_dataset(DIR, "nltcs_marginals.data")
 
 class BinaryCLT:
     def __init__(self, data, root: int = None, alpha: float = 0.01):
@@ -224,18 +225,24 @@ class BinaryCLT:
         return samples
     
     def sample(self, n_samples: int) -> np.ndarray:
+        # number of variables
         D = self.D
+
+        # output array, initialized as zeros
         out = np.zeros((n_samples, D), dtype=int)
 
+        # for each node, store children in the tree
         children = [[] for _ in range(D)]
         for v, p in enumerate(self.tree):
             if p != -1:
                 children[p].append(v)
 
+        # generate each sample independently
         for s in range(n_samples):
             root_probs = np.exp(self.log_params[self.root, 0, :])
             out[s, self.root] = np.random.choice([0, 1], p=root_probs)
 
+            # move down the tree
             frontier = [self.root]
             while frontier:
                 u = frontier.pop()
@@ -245,20 +252,31 @@ class BinaryCLT:
                     out[s, v] = np.random.choice([0, 1], p=probs)
                     frontier.append(v)
 
-        return out
+        return out # shape (n_samples, D)
      
+# fit CLT
+clt = BinaryCLT(train, root=0, alpha=0.01)
+print(clt.get_tree())
 
-train_data = load_dataset(dir, train_file)
+# log CPTs
+log_cpts = clt.get_log_params()
+print(log_cpts)
 
-clt = BinaryCLT(data=train_data, root=0)
-print(clt.tree)
-print(clt.get_log_params())
-print(clt.sample(n_samples=3))
+# average log likelihoods
+print("average train=", clt.log_prob(train, exhaustive=False).mean())
+print("average test=", clt.log_prob(test, exhaustive=False).mean())
 
-x = np.array([
-    [0,np.nan,0,1,0,1,1,1,1,1,0,1,1,0,0,1],
-    [0,0,np.nan,1,0,np.nan,1,1,np.nan,1,0,1,1,0,0,1],
-    [0,0,np.nan,1,0,1,1,1,np.nan,1,0,1,1,0,0,1]
-])
-print(clt.log_prob(x, exhaustive=False))
-print(clt.log_prob(x, exhaustive=True))
+# efficient vs exhaustive
+lp_fast = clt.log_prob(marginal_queries, exhaustive=False)
+lp_slow = clt.log_prob(marginal_queries, exhaustive=True)
+print("efficient vs exhaustive same result =", np.allclose(lp_fast, lp_slow))
+
+# runtime
+t0 = time.time(); _ = clt.log_prob(marginal_queries, exhaustive=False); t1 = time.time()
+t2 = time.time(); _ = clt.log_prob(marginal_queries, exhaustive=True);  t3 = time.time()
+print("efficient runtime =", t1-t0)
+print("exhaustive runtime =", t3-t2)
+
+# sampling
+samples = clt.sample(1000)
+print(clt.log_prob(samples, exhaustive=False).mean())
