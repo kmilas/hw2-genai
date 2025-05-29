@@ -132,27 +132,35 @@ class BinaryCLT:
             values_to_extract = joint_distrib[:, -1]
             
             for i in range(n):
-                to_sum = []
-                factors = []
+                nan_mask_in_x = np.isnan(x[i])
+                current_factors = np.array([])
+                non_nan_mask_in_x = ~nan_mask_in_x
+                num_nans = int(np.sum(nan_mask_in_x))
 
-                # Convert nan values to all possible values (0 and 1)
-                n_fill_combinations = 2 ** np.sum(np.isnan(x[i]))
-                for j in range(n_fill_combinations):
-                    x_i = np.copy(x[i])
-                    idx = 0
-                    for k in range(len(x_i)):
-                        if np.isnan(x_i[k]):
-                            x_i[k] = (j >> idx) & 1
-                            idx += 1
-                    to_sum.append(x_i)
+                if np.any(non_nan_mask_in_x):
+                    x_defined_values = x[i][non_nan_mask_in_x]
+                    data_slice_defined_parts = data_slice[:, non_nan_mask_in_x]
+                
+                    initial_match_mask = np.all(data_slice_defined_parts == x_defined_values, axis=1)
+                else:
+                    initial_match_mask = np.full(data_slice.shape[0], True, dtype=bool)
 
-                keys_array = np.asarray(to_sum)
-                element_wise_comparison = (data_slice[:, np.newaxis, :] == keys_array[np.newaxis, :, :])
-                row_level_matches = np.all(element_wise_comparison, axis=2)
-                matching_data_indices = np.where(row_level_matches)[0]
-                factors = values_to_extract[matching_data_indices]
+                candidate_row_indices = np.where(initial_match_mask)[0]
 
-                lg[i] = logsumexp(factors)
+                if num_nans == 0:
+                    current_factors = values_to_extract[candidate_row_indices]
+                else:
+                    data_slice_at_x_nan_positions = data_slice[candidate_row_indices][:, nan_mask_in_x]
+                    valid_fill_values_mask = np.all(
+                        (data_slice_at_x_nan_positions == 0) | (data_slice_at_x_nan_positions == 1),
+                        axis=1
+                    )
+                    final_matching_indices_in_data_slice = candidate_row_indices[valid_fill_values_mask]
+                    
+                    if final_matching_indices_in_data_slice.size > 0:
+                        current_factors = values_to_extract[final_matching_indices_in_data_slice]
+
+                lg[i] = logsumexp(current_factors)
         else:
             for i in range(n):
                 messages = np.full((self.D, 2), np.nan)
@@ -249,7 +257,8 @@ print(clt.sample(n_samples=3))
 
 x = np.array([
     [0,np.nan,0,1,0,1,1,1,1,1,0,1,1,0,0,1],
-    [0,0,np.nan,1,0,np.nan,1,1,np.nan,1,0,1,1,0,0,1]
+    [0,0,np.nan,1,0,np.nan,1,1,np.nan,1,0,1,1,0,0,1],
+    [0,0,np.nan,1,0,1,1,1,np.nan,1,0,1,1,0,0,1]
 ])
 print(clt.log_prob(x, exhaustive=False))
 print(clt.log_prob(x, exhaustive=True))
