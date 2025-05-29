@@ -107,7 +107,7 @@ class BinaryCLT:
     def get_log_params(self):
         return self.log_params
 
-    def log_prob_old(self, x, exhaustive: bool = False):
+    def log_prob(self, x, exhaustive: bool = False):
         n = x.shape[0]
         lg = np.zeros((n, 1))
 
@@ -187,67 +187,6 @@ class BinaryCLT:
 
                 # Sum over all messages for the root (removing the nan values)
                 lg[i] = logsumexp(messages[self.root, ~np.isnan(messages[self.root, :])])
-
-        return lg
-    
-    def log_prob(self, x, exhaustive: bool = False):
-        n = x.shape[0]
-        lg = np.zeros((n, 1))
-
-        if exhaustive:
-            for i in range(n):
-                xi_orig = x[i]
-                missing = np.where(np.isnan(xi_orig))[0]
-                m = len(missing)
-                factors = []
-
-                for mask in range(1 << m):
-                    xi = xi_orig.copy()
-                    for bit_idx, var in enumerate(missing):
-                        xi[var] = (mask >> bit_idx) & 1
-
-                    logp = 0.0
-                    for d in range(self.D):
-                        parent = self.tree[d]
-                        b = int(xi[d])
-                        if parent < 0:
-                            logp += self.log_params[d, 0, b]
-                        else:
-                            p = int(xi[parent])
-                            logp += self.log_params[d, p, b]
-
-                    factors.append(logp)
-
-                lg[i] = logsumexp(factors)
-
-        else:
-            for i in range(n):
-                messages = np.full((self.D, 2), np.nan)
-                for j in reversed(self.order):
-                    parent = self.tree[j]
-                    if parent >= 0:
-                        parent_values = [0, 1] if np.isnan(x[i, parent]) else [int(x[i, parent])]
-                        child_values = [0, 1] if np.isnan(x[i, j]) else [int(x[i, j])]
-                        for k in parent_values:
-                            values = []
-                            for l in child_values:
-                                if np.isnan(messages[j, l]):
-                                    values.append(self.log_params[j, k, l])
-                                else:
-                                    values.append(messages[j, l] + self.log_params[j, k, l])
-                            if np.isnan(messages[parent, k]):
-                                messages[parent, k] = logsumexp(values)
-                            else:
-                                messages[parent, k] += logsumexp(values)
-                    else:
-                        possible_values = [0, 1] if np.isnan(x[i, j]) else [int(x[i, j])]
-                        for k in possible_values:
-                            if np.isnan(messages[j, k]):
-                                messages[j, k] = self.log_params[j, 0, k]
-                            else:
-                                messages[j, k] += self.log_params[j, 0, k]
-
-                lg[i] = logsumexp(messages[self.root, ~np.isnan(messages[self.root])])
 
         return lg
 
